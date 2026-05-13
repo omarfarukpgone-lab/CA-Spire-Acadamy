@@ -1,0 +1,167 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // -------------------------------------------------------------------------
+    // GLOBAL HELPERS
+    // -------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      // Identity-linked admin check: bootstrap specific users or check a restricted collection
+      return isSignedIn() && (
+        request.auth.token.email == 'omarfarukpgone@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // -------------------------------------------------------------------------
+    // VALIDATION HELPERS
+    // -------------------------------------------------------------------------
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+             data.keys().size() <= 8 &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.role in ['student', 'admin'] &&
+             data.createdAt == request.time &&
+             (!('institute' in data) || (data.institute is string && data.institute.size() <= 200)) &&
+             (!('level' in data) || (data.level in ['Certificate', 'Professional', 'Advanced']));
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['name', 'icon', 'totalMCQs', 'description']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.icon is string && data.icon.size() <= 50 &&
+             data.totalMCQs is number &&
+             data.description is string && data.description.size() <= 500;
+    }
+
+    function isValidMCQ(data) {
+      return data.keys().hasAll(['question', 'options', 'correctOption', 'explanation', 'difficulty', 'chapter']) &&
+             data.question is string && data.question.size() <= 2000 &&
+             data.options is list && data.options.size() == 4 &&
+             data.correctOption is int && data.correctOption >= 0 && data.correctOption < 4 &&
+             data.explanation is string && data.explanation.size() <= 2000 &&
+             data.difficulty in ['Easy', 'Medium', 'Hard'] &&
+             data.chapter is string;
+    }
+
+    function isValidSubmission(data) {
+      return data.keys().hasAll(['userId', 'testId', 'score', 'timeTaken', 'answers', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.testId is string &&
+             data.score is number && data.score >= -100 &&
+             data.timeTaken is number &&
+             data.answers is map &&
+             data.createdAt == request.time;
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['title', 'type', 'url', 'isPremium']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.type in ['PDF', 'Hand', 'Short', 'Formula'] &&
+             data.url is string &&
+             data.isPremium is bool;
+    }
+
+    function isValidBlogPost(data) {
+      return data.keys().hasAll(['title', 'content', 'category', 'createdAt', 'thumbnail']) &&
+             data.title is string && data.title.size() <= 300 &&
+             data.content is string &&
+             data.category is string &&
+             data.createdAt == request.time &&
+             data.thumbnail is string;
+    }
+
+    // -------------------------------------------------------------------------
+    // SECURITY RULES
+    // -------------------------------------------------------------------------
+
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // USERS
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().role == 'student';
+      allow update: if isOwner(userId) && (
+        // Only allow updating specific fields
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'institute', 'level'])
+      ) || (isAdmin());
+    }
+
+    // SUBJECTS
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSubject(incoming());
+
+      // Nested MCQs
+      match /mcqs/{mcqId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin() && isValidMCQ(incoming());
+      }
+
+      // Nested NOTES
+      match /notes/{noteId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin() && isValidNote(incoming());
+      }
+    }
+
+    // MOCK TESTS
+    match /mockTests/{testId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidMockTest(incoming());
+    }
+
+    // SUBMISSIONS
+    match /submissions/{submissionId} {
+      allow get: if isOwner(existing().userId) || isAdmin();
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidSubmission(incoming());
+      // No updates or deletes allowed for students
+      allow delete: if isAdmin();
+    }
+
+    // BLOG POSTS
+    match /blogPosts/{postId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidBlogPost(incoming());
+    }
+
+    // Support check for mockTest validation helper if needed
+    function isValidMockTest(data) {
+      return data.keys().hasAll(['title', 'subjectId', 'duration', 'totalQuestions', 'negativeMarking', 'category']) &&
+             data.title is string && data.subjectId is string &&
+             data.duration is number && data.totalQuestions is number &&
+             data.negativeMarking is bool &&
+             data.category in ['Daily', 'Weekly', 'Full', 'Subject Wise'];
+    }
+  }
+}

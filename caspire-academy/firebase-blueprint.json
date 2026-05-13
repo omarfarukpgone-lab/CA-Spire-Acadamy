@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered CA students and admins",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "institute": { "type": "string" },
+        "level": { "type": "string", "enum": ["Certificate", "Professional", "Advanced"] },
+        "role": { "type": "string", "enum": ["student", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "CA Curriculum subjects",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "totalMCQs": { "type": "number" },
+        "description": { "type": "string" }
+      }
+    },
+    "MCQ": {
+      "title": "MCQ",
+      "description": "Multiple Choice Question",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "correctOption": { "type": "number" },
+        "explanation": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["Easy", "Medium", "Hard"] },
+        "chapter": { "type": "string" }
+      }
+    },
+    "MockTest": {
+      "title": "Mock Test",
+      "description": "Exam simulation template",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "duration": { "type": "number" },
+        "totalQuestions": { "type": "number" },
+        "negativeMarking": { "type": "boolean" },
+        "category": { "type": "string", "enum": ["Daily", "Weekly", "Full", "Subject Wise"] }
+      }
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "Student's attempt at a test or MCQ set",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "testId": { "type": "string" },
+        "score": { "type": "number" },
+        "timeTaken": { "type": "number" },
+        "answers": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Note": {
+      "title": "Note",
+      "description": "Study materials",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["PDF", "Hand", "Short", "Formula"] },
+        "url": { "type": "string" },
+        "isPremium": { "type": "boolean" }
+      }
+    },
+    "BlogPost": {
+      "title": "Blog Post",
+      "description": "Articles and tips",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "thumbnail": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Curriculum subjects"
+    },
+    "/subjects/{subjectId}/mcqs/{mcqId}": {
+      "schema": "MCQ",
+      "description": "Questions for a subject"
+    },
+    "/subjects/{subjectId}/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Notes for a subject"
+    },
+    "/mockTests/{testId}": {
+      "schema": "MockTest",
+      "description": "Available mock tests"
+    },
+    "/submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "Test results"
+    },
+    "/blogPosts/{postId}": {
+      "schema": "BlogPost",
+      "description": "Blog articles"
+    }
+  }
+}
